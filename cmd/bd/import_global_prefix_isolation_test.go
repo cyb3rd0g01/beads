@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/steveyegge/beads/internal/doltserver"
 	"github.com/steveyegge/beads/internal/testutil"
 )
 
@@ -92,6 +93,17 @@ func TestCLI_Import_GlobalModeIgnoresProjectConfigYAMLPrefix(t *testing.T) {
 		t.Fatalf("bd config get issue_prefix --global (before import) failed: %v\n%s", err, globalOut)
 	}
 	globalPrefixBefore := strings.TrimSpace(globalOut)
+	// Anchor what `before` IS, so the after == before comparison below cannot
+	// go vacuous: if this read ever stops resolving the global store's row it
+	// returns "" or the "issue_prefix (not set)" line (cmd/bd/config.go), and
+	// an unanchored after == before would then pass while measuring nothing.
+	//
+	// The expected value is doltserver.GlobalIssuePrefix, NOT the --prefix
+	// passed to init above: --prefix names the PROJECT's prefix, and bd init
+	// --global always writes the constant into the shared store (init.go).
+	if globalPrefixBefore != doltserver.GlobalIssuePrefix {
+		t.Fatalf("global issue_prefix before import = %q, want %q — the --global config read is not resolving the global store's row", globalPrefixBefore, doltserver.GlobalIssuePrefix)
+	}
 
 	issue := `{"id":"globaltest-1","title":"Global import test","status":"open","priority":2,"issue_type":"task","created_at":"2026-01-01T00:00:00Z"}`
 	jsonlPath := filepath.Join(projectDir, "global.jsonl")
@@ -107,7 +119,7 @@ func TestCLI_Import_GlobalModeIgnoresProjectConfigYAMLPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bd config get issue_prefix --global (after import) failed: %v\n%s", err, afterOut)
 	}
-	if got := strings.TrimSpace(afterOut); got != globalPrefixBefore {
+	if got := strings.TrimSpace(afterOut); got != doltserver.GlobalIssuePrefix {
 		t.Fatalf("global issue_prefix changed from %q to %q — a --global import must not adopt the local project's config.yaml prefix (localproj)", globalPrefixBefore, got)
 	}
 }
